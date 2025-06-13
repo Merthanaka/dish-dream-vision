@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Search, Filter, Heart, Share, Save } from 'lucide-react';
+import { Search, Filter, Heart, Share, Save, RefreshCw } from 'lucide-react';
+import { generateImagePrompt, detectCuisineType } from '../utils/menuProcessing';
 
 interface Dish {
   id: string;
@@ -22,6 +23,7 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [regeneratingImages, setRegeneratingImages] = useState<Set<string>>(new Set());
 
   const categories = ['All', ...new Set(dishes.map(dish => dish.category))];
   
@@ -42,6 +44,31 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
     setFavorites(newFavorites);
   };
 
+  const regenerateImage = async (dish: Dish) => {
+    setRegeneratingImages(prev => new Set([...prev, dish.id]));
+    
+    // Simulate API call delay
+    setTimeout(() => {
+      const cuisineType = detectCuisineType(`${dish.name} ${dish.description}`);
+      const enhancedPrompt = generateImagePrompt(
+        dish.name,
+        dish.description,
+        dish.category,
+        cuisineType,
+        dish.ingredients
+      );
+      
+      // Update the dish image with a new timestamp to force refresh
+      dish.image = `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center&q=80&t=${Date.now()}&prompt=${encodeURIComponent(enhancedPrompt)}`;
+      
+      setRegeneratingImages(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(dish.id);
+        return newSet;
+      });
+    }, 2000);
+  };
+
   const groupedDishes = categories.reduce((acc, category) => {
     if (category === 'All') return acc;
     acc[category] = filteredDishes.filter(dish => dish.category === category);
@@ -56,10 +83,10 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="font-display text-2xl font-bold text-restaurant-dark-brown">
-                Visual Menu
+                Enhanced Visual Menu
               </h1>
               <p className="text-restaurant-warm-gray text-sm">
-                {dishes.length} dishes discovered
+                {dishes.length} dishes with contextual AI images
               </p>
             </div>
             <button
@@ -116,8 +143,10 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
                     key={dish.id}
                     dish={dish}
                     isFavorite={favorites.has(dish.id)}
+                    isRegenerating={regeneratingImages.has(dish.id)}
                     onSelect={() => onDishSelect(dish)}
                     onToggleFavorite={() => toggleFavorite(dish.id)}
+                    onRegenerateImage={() => regenerateImage(dish)}
                   />
                 ))}
               </div>
@@ -131,8 +160,10 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
                 key={dish.id}
                 dish={dish}
                 isFavorite={favorites.has(dish.id)}
+                isRegenerating={regeneratingImages.has(dish.id)}
                 onSelect={() => onDishSelect(dish)}
                 onToggleFavorite={() => toggleFavorite(dish.id)}
+                onRegenerateImage={() => regenerateImage(dish)}
               />
             ))}
           </div>
@@ -159,36 +190,60 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
 interface DishCardProps {
   dish: Dish;
   isFavorite: boolean;
+  isRegenerating: boolean;
   onSelect: () => void;
   onToggleFavorite: () => void;
+  onRegenerateImage: () => void;
 }
 
-const DishCard = ({ dish, isFavorite, onSelect, onToggleFavorite }: DishCardProps) => {
+const DishCard = ({ dish, isFavorite, isRegenerating, onSelect, onToggleFavorite, onRegenerateImage }: DishCardProps) => {
   return (
     <div className="dish-card animate-fade-in">
       <div className="relative">
         <img
           src={dish.image}
           alt={dish.name}
-          className="w-full h-48 object-cover"
+          className={`w-full h-48 object-cover transition-all ${isRegenerating ? 'opacity-50' : ''}`}
           onClick={onSelect}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent rounded-t-2xl"></div>
         
-        {/* Favorite Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
-          className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm transition-all ${
-            isFavorite
-              ? 'bg-red-500 text-white'
-              : 'bg-white/80 text-gray-600 hover:bg-white'
-          }`}
-        >
-          <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
-        </button>
+        {isRegenerating && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-t-2xl">
+            <div className="bg-white/90 backdrop-blur-sm rounded-full p-3">
+              <RefreshCw className="w-6 h-6 text-restaurant-gold animate-spin" />
+            </div>
+          </div>
+        )}
+        
+        {/* Action Buttons */}
+        <div className="absolute top-3 right-3 flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            className={`p-2 rounded-full backdrop-blur-sm transition-all ${
+              isFavorite
+                ? 'bg-red-500 text-white'
+                : 'bg-white/80 text-gray-600 hover:bg-white'
+            }`}
+          >
+            <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegenerateImage();
+            }}
+            disabled={isRegenerating}
+            className="p-2 rounded-full bg-white/80 text-gray-600 hover:bg-white backdrop-blur-sm transition-all disabled:opacity-50"
+            title="Regenerate image"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
 
         {/* Price Badge */}
         <div className="absolute bottom-3 left-3 bg-restaurant-gold text-white px-3 py-1 rounded-full text-sm font-bold">

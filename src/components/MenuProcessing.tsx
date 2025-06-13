@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { parseMenuText } from '../utils/menuProcessing';
 
 interface MenuProcessingProps {
   menuImage: string;
@@ -20,85 +21,66 @@ interface Dish {
 const MenuProcessing = ({ menuImage, onProcessingComplete }: MenuProcessingProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [extractedText, setExtractedText] = useState('');
+  const [showTextPreview, setShowTextPreview] = useState(false);
 
   const steps = [
-    { title: "Scanning Menu", desc: "Reading text from your photo" },
-    { title: "Identifying Dishes", desc: "Finding all menu items" },
-    { title: "Generating Images", desc: "Creating beautiful dish photos" },
-    { title: "Finalizing Menu", desc: "Organizing your visual menu" }
+    { title: "Scanning Menu", desc: "Reading text from your photo with OCR" },
+    { title: "Analyzing Content", desc: "Detecting cuisine type and menu sections" },
+    { title: "Processing Dishes", desc: "Extracting dish names, descriptions, and prices" },
+    { title: "Generating Images", desc: "Creating contextual dish photos with AI" },
+    { title: "Finalizing Menu", desc: "Organizing your enhanced visual menu" }
   ];
 
   useEffect(() => {
     const timer = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
-          // Processing complete, generate mock dishes
-          const mockDishes: Dish[] = [
-            {
-              id: '1',
-              name: 'Caesar Salad',
-              description: 'Crisp romaine lettuce, parmesan cheese, croutons, house caesar dressing',
-              price: '$12',
-              category: 'Appetizers',
-              image: `https://images.unsplash.com/photo-1512852939750-1305098529bf?w=400&h=300&fit=crop&crop=center`,
-              ingredients: ['Romaine lettuce', 'Parmesan cheese', 'Croutons', 'Caesar dressing']
-            },
-            {
-              id: '2',
-              name: 'Bruschetta',
-              description: 'Grilled bread topped with diced tomatoes, fresh basil, garlic, balsamic glaze',
-              price: '$10',
-              category: 'Appetizers',
-              image: `https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=400&h=300&fit=crop&crop=center`,
-              ingredients: ['Grilled bread', 'Tomatoes', 'Basil', 'Garlic', 'Balsamic']
-            },
-            {
-              id: '3',
-              name: 'Grilled Salmon',
-              description: 'Herb-crusted Atlantic salmon with lemon butter sauce and seasonal vegetables',
-              price: '$24',
-              category: 'Main Courses',
-              image: `https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400&h=300&fit=crop&crop=center`,
-              ingredients: ['Atlantic salmon', 'Herbs', 'Lemon', 'Butter', 'Vegetables']
-            },
-            {
-              id: '4',
-              name: 'Ribeye Steak',
-              description: '12oz prime ribeye with garlic mashed potatoes and grilled asparagus',
-              price: '$32',
-              category: 'Main Courses',
-              image: `https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=300&fit=crop&crop=center`,
-              ingredients: ['Ribeye steak', 'Mashed potatoes', 'Asparagus', 'Garlic']
-            },
-            {
-              id: '5',
-              name: 'Chicken Parmesan',
-              description: 'Breaded chicken cutlet with mozzarella cheese, marinara sauce, served with pasta',
-              price: '$18',
-              category: 'Main Courses',
-              image: `https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?w=400&h=300&fit=crop&crop=center`,
-              ingredients: ['Chicken breast', 'Mozzarella', 'Marinara sauce', 'Pasta']
-            }
-          ];
+          // Simulate OCR extraction with enhanced mock data
+          const mockMenuText = `
+APPETIZERS
+Caesar Salad - Crisp romaine lettuce, parmesan cheese, croutons, house caesar dressing $12
+Bruschetta - Grilled bread topped with diced tomatoes, fresh basil, garlic, balsamic glaze $10
+Calamari Rings - Fresh squid rings, lightly battered and fried, served with marinara sauce $14
+
+MAIN COURSES  
+Grilled Atlantic Salmon - Herb-crusted salmon fillet with lemon butter sauce and seasonal vegetables $24
+Prime Ribeye Steak - 12oz prime ribeye with garlic mashed potatoes and grilled asparagus $32
+Chicken Parmesan - Breaded chicken cutlet with mozzarella cheese, marinara sauce, served with pasta $18
+Lobster Risotto - Creamy arborio rice with fresh lobster meat, white wine, and parmesan $28
+
+DESSERTS
+Chocolate Lava Cake - Warm chocolate cake with molten center, vanilla ice cream $8
+Tiramisu - Classic Italian dessert with mascarpone, espresso, and ladyfingers $7
+          `;
+
+          setExtractedText(mockMenuText);
           
           setTimeout(() => {
-            onProcessingComplete(mockDishes);
-          }, 1000);
+            const processedDishes = parseMenuText(mockMenuText);
+            console.log('Processed dishes with enhanced prompts:', processedDishes);
+            onProcessingComplete(processedDishes);
+          }, 1500);
           
           clearInterval(timer);
           return 100;
         }
         
-        const newProgress = prev + 2;
-        const stepIndex = Math.floor(newProgress / 25);
+        const newProgress = prev + 1.5;
+        const stepIndex = Math.floor(newProgress / 20);
         setCurrentStep(Math.min(stepIndex, steps.length - 1));
+        
+        // Show text preview at 40% progress
+        if (newProgress >= 40 && !showTextPreview) {
+          setShowTextPreview(true);
+        }
         
         return newProgress;
       });
-    }, 100);
+    }, 80);
 
     return () => clearInterval(timer);
-  }, [onProcessingComplete]);
+  }, [onProcessingComplete, showTextPreview]);
 
   return (
     <div className="min-h-screen bg-gradient-warm flex flex-col">
@@ -108,21 +90,49 @@ const MenuProcessing = ({ menuImage, onProcessingComplete }: MenuProcessingProps
           Processing Your Menu
         </h1>
         <p className="text-restaurant-warm-gray">
-          Our AI is working its magic
+          Enhanced AI analysis in progress
         </p>
       </div>
 
       {/* Menu Preview */}
       <div className="px-6 mb-8">
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative">
           <img
             src={menuImage}
             alt="Menu being processed"
             className="w-full h-48 object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-restaurant-gold/20 to-transparent rounded-2xl"></div>
+          {currentStep >= 1 && (
+            <div className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              Text Extracted
+            </div>
+          )}
         </div>
       </div>
+
+      {/* OCR Text Preview */}
+      {showTextPreview && (
+        <div className="px-6 mb-6">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <h3 className="font-display text-lg font-semibold text-restaurant-dark-brown">
+                Extracted Menu Text
+              </h3>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                {extractedText.trim()}
+              </pre>
+            </div>
+            <p className="text-xs text-restaurant-warm-gray mt-2">
+              ✓ Cuisine detected • ✓ Categories identified • ✓ Enhanced prompts ready
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Progress Section */}
       <div className="flex-1 px-6">
@@ -188,11 +198,11 @@ const MenuProcessing = ({ menuImage, onProcessingComplete }: MenuProcessingProps
         </div>
       </div>
 
-      {/* Fun Facts */}
+      {/* Enhanced Processing Info */}
       <div className="p-6">
         <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 text-center">
           <p className="text-sm text-restaurant-warm-gray">
-            💡 <strong>Did you know?</strong> Visual menus can increase order satisfaction by up to 40%
+            🧠 <strong>Enhanced AI:</strong> Using contextual prompts and cuisine detection for accurate dish images
           </p>
         </div>
       </div>
