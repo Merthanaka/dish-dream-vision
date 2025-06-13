@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import WelcomeScreen from '../components/WelcomeScreen';
 import CameraCapture from '../components/CameraCapture';
 import MenuProcessing from '../components/MenuProcessing';
+import TextVerification from '../components/TextVerification';
 import VisualMenu from '../components/VisualMenu';
 import DishDetailModal from '../components/DishDetailModal';
 
@@ -16,29 +17,67 @@ interface Dish {
   ingredients: string[];
 }
 
-type AppState = 'welcome' | 'camera' | 'processing' | 'menu';
+type AppState = 'welcome' | 'camera' | 'processing' | 'verification' | 'menu';
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>('welcome');
   const [capturedMenu, setCapturedMenu] = useState<string>('');
+  const [extractedText, setExtractedText] = useState<string>('');
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [sessionId, setSessionId] = useState<string>('');
+
+  // Generate new session ID for each scan
+  const generateSessionId = () => {
+    return `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  };
+
+  // Clear all state when starting new scan
+  const clearAllState = () => {
+    console.log('Clearing all state for new scan');
+    setCapturedMenu('');
+    setExtractedText('');
+    setDishes([]);
+    setSelectedDish(null);
+    setFavorites(new Set());
+    setSessionId(generateSessionId());
+    
+    // Clear any cached data
+    localStorage.removeItem('menuVision_lastScan');
+    sessionStorage.clear();
+  };
 
   const handleScanMenu = () => {
+    clearAllState();
     setAppState('camera');
   };
 
   const handleUploadMenu = () => {
+    clearAllState();
     setAppState('camera');
   };
 
   const handleCaptureComplete = (imageData: string) => {
+    console.log('Capture complete, setting menu image');
     setCapturedMenu(imageData);
     setAppState('processing');
   };
 
+  const handleTextExtracted = (text: string) => {
+    console.log('Text extracted:', text);
+    setExtractedText(text);
+    setAppState('verification');
+  };
+
+  const handleTextConfirmed = (confirmedText: string) => {
+    console.log('Text confirmed, processing dishes...');
+    setExtractedText(confirmedText);
+    setAppState('processing');
+  };
+
   const handleProcessingComplete = (processedDishes: Dish[]) => {
+    console.log('Processing complete with dishes:', processedDishes);
     setDishes(processedDishes);
     setAppState('menu');
   };
@@ -48,14 +87,17 @@ const Index = () => {
   };
 
   const handleNewScan = () => {
+    console.log('Starting new scan - clearing all data');
+    clearAllState();
     setAppState('welcome');
-    setCapturedMenu('');
-    setDishes([]);
-    setSelectedDish(null);
   };
 
   const handleBackToCamera = () => {
     setAppState('welcome');
+  };
+
+  const handleRetakePhoto = () => {
+    setAppState('camera');
   };
 
   const toggleFavorite = (dishId: string) => {
@@ -67,6 +109,13 @@ const Index = () => {
     }
     setFavorites(newFavorites);
   };
+
+  // Initialize session ID on mount
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionId(generateSessionId());
+    }
+  }, [sessionId]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,7 +136,18 @@ const Index = () => {
       {appState === 'processing' && (
         <MenuProcessing
           menuImage={capturedMenu}
+          extractedText={extractedText}
+          sessionId={sessionId}
+          onTextExtracted={handleTextExtracted}
           onProcessingComplete={handleProcessingComplete}
+        />
+      )}
+
+      {appState === 'verification' && (
+        <TextVerification
+          extractedText={extractedText}
+          onConfirm={handleTextConfirmed}
+          onEdit={handleRetakePhoto}
         />
       )}
 

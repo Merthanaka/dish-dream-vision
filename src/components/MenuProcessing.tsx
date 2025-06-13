@@ -1,10 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, ImageIcon } from 'lucide-react';
 import { parseMenuText } from '../utils/menuProcessing';
 
 interface MenuProcessingProps {
   menuImage: string;
+  extractedText?: string;
+  sessionId: string;
+  onTextExtracted?: (text: string) => void;
   onProcessingComplete: (dishes: Dish[]) => void;
 }
 
@@ -18,11 +20,19 @@ interface Dish {
   ingredients: string[];
 }
 
-const MenuProcessing = ({ menuImage, onProcessingComplete }: MenuProcessingProps) => {
+const MenuProcessing = ({ 
+  menuImage, 
+  extractedText, 
+  sessionId,
+  onTextExtracted, 
+  onProcessingComplete 
+}: MenuProcessingProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [extractedText, setExtractedText] = useState('');
+  const [menuText, setMenuText] = useState('');
   const [showTextPreview, setShowTextPreview] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState<number>(0);
+  const [totalDishes, setTotalDishes] = useState<number>(0);
 
   const steps = [
     { title: "Scanning Menu", desc: "Reading text from your photo with OCR" },
@@ -33,10 +43,36 @@ const MenuProcessing = ({ menuImage, onProcessingComplete }: MenuProcessingProps
   ];
 
   useEffect(() => {
+    console.log('MenuProcessing started with sessionId:', sessionId);
+    
+    // If we already have extracted text, skip to processing
+    if (extractedText) {
+      setMenuText(extractedText);
+      setShowTextPreview(true);
+      setCurrentStep(2);
+      setProgress(60);
+      
+      // Process dishes immediately
+      setTimeout(() => {
+        processMenu(extractedText);
+      }, 1000);
+      return;
+    }
+
+    // Otherwise start from OCR
     const timer = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
-          // Simulate OCR extraction with enhanced mock data
+          clearInterval(timer);
+          return 100;
+        }
+        
+        const newProgress = prev + 2;
+        const stepIndex = Math.floor(newProgress / 20);
+        setCurrentStep(Math.min(stepIndex, steps.length - 1));
+        
+        // Show text preview at 40% progress
+        if (newProgress >= 40 && !showTextPreview) {
           const mockMenuText = `
 APPETIZERS
 Caesar Salad - Crisp romaine lettuce, parmesan cheese, croutons, house caesar dressing $12
@@ -53,34 +89,53 @@ DESSERTS
 Chocolate Lava Cake - Warm chocolate cake with molten center, vanilla ice cream $8
 Tiramisu - Classic Italian dessert with mascarpone, espresso, and ladyfingers $7
           `;
-
-          setExtractedText(mockMenuText);
+          setMenuText(mockMenuText);
+          setShowTextPreview(true);
           
-          setTimeout(() => {
-            const processedDishes = parseMenuText(mockMenuText);
-            console.log('Processed dishes with enhanced prompts:', processedDishes);
-            onProcessingComplete(processedDishes);
-          }, 1500);
-          
-          clearInterval(timer);
-          return 100;
+          if (onTextExtracted) {
+            onTextExtracted(mockMenuText);
+          }
         }
         
-        const newProgress = prev + 1.5;
-        const stepIndex = Math.floor(newProgress / 20);
-        setCurrentStep(Math.min(stepIndex, steps.length - 1));
-        
-        // Show text preview at 40% progress
-        if (newProgress >= 40 && !showTextPreview) {
-          setShowTextPreview(true);
+        // Start processing at 80%
+        if (newProgress >= 80) {
+          processMenu(menuText);
         }
         
         return newProgress;
       });
-    }, 80);
+    }, 100);
 
     return () => clearInterval(timer);
-  }, [onProcessingComplete, showTextPreview]);
+  }, [extractedText, sessionId, menuText, showTextPreview, onTextExtracted]);
+
+  const processMenu = (text: string) => {
+    if (!text.trim()) return;
+    
+    console.log('Processing menu with text:', text);
+    setCurrentStep(4);
+    
+    // Parse menu and generate images
+    const processedDishes = parseMenuText(text, sessionId);
+    setTotalDishes(processedDishes.length);
+    
+    console.log('Processed dishes:', processedDishes);
+    
+    // Simulate image generation progress
+    let imageCount = 0;
+    const imageTimer = setInterval(() => {
+      imageCount++;
+      setGeneratedImages(imageCount);
+      
+      if (imageCount >= processedDishes.length) {
+        clearInterval(imageTimer);
+        setTimeout(() => {
+          console.log('Processing complete, calling onProcessingComplete');
+          onProcessingComplete(processedDishes);
+        }, 1000);
+      }
+    }, 300);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-warm flex flex-col">
@@ -124,7 +179,7 @@ Tiramisu - Classic Italian dessert with mascarpone, espresso, and ladyfingers $7
             </div>
             <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                {extractedText.trim()}
+                {menuText.trim()}
               </pre>
             </div>
             <p className="text-xs text-restaurant-warm-gray mt-2">
@@ -150,6 +205,25 @@ Tiramisu - Classic Italian dessert with mascarpone, espresso, and ladyfingers $7
               ></div>
             </div>
           </div>
+
+          {/* Image Generation Progress */}
+          {currentStep === 4 && totalDishes > 0 && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+                <span className="text-blue-700 font-medium">Generating Images</span>
+              </div>
+              <div className="text-sm text-blue-600">
+                {generatedImages} of {totalDishes} images generated
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(generatedImages / totalDishes) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
 
           {/* Current Step */}
           <div className="text-center mb-8">

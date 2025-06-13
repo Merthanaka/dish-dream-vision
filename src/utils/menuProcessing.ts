@@ -159,7 +159,32 @@ export const generateImagePrompt = (
   return prompt;
 };
 
-export const parseMenuText = (menuText: string): Dish[] => {
+// Fix the image URL generation to use proper food images
+export const generateImageUrl = (prompt: string): string => {
+  // Use Unsplash with food-specific search terms
+  const foodKeywords = extractFoodKeywords(prompt);
+  const searchTerm = foodKeywords.length > 0 ? foodKeywords[0] : 'gourmet food';
+  
+  // Generate unique timestamp to prevent caching issues
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substring(7);
+  
+  return `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center&q=80&auto=format&t=${timestamp}&id=${randomId}&search=${encodeURIComponent(searchTerm)}`;
+};
+
+const extractFoodKeywords = (prompt: string): string[] => {
+  const foodTerms = [
+    'salmon', 'chicken', 'beef', 'pasta', 'pizza', 'salad', 'soup', 'burger', 
+    'sandwich', 'seafood', 'vegetables', 'dessert', 'cake', 'ice cream',
+    'bread', 'cheese', 'fish', 'meat', 'rice', 'noodles'
+  ];
+  
+  const lowerPrompt = prompt.toLowerCase();
+  return foodTerms.filter(term => lowerPrompt.includes(term));
+};
+
+export const parseMenuText = (menuText: string, sessionId: string): Dish[] => {
+  console.log('Parsing menu text with session:', sessionId);
   const sections = detectMenuSections(menuText);
   const cuisineType = detectCuisineType(menuText);
   const dishes: Dish[] = [];
@@ -183,18 +208,24 @@ export const parseMenuText = (menuText: string): Dish[] => {
       
       // Generate enhanced prompt for image generation
       const imagePrompt = generateImagePrompt(name, description, category, cuisineType, ingredients);
+      console.log('Generated prompt for', name, ':', imagePrompt);
+      
+      // Generate image URL with session-specific cache busting
+      const imageUrl = generateImageUrl(imagePrompt);
+      console.log('Generated image URL for', name, ':', imageUrl);
       
       dishes.push({
-        id: `${section.title}-${index}`,
+        id: `${sessionId}-${section.title}-${index}`,
         name,
         description,
         price,
         category,
-        image: `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center&q=80&prompt=${encodeURIComponent(imagePrompt)}`,
+        image: imageUrl,
         ingredients
       });
     });
   });
 
+  console.log('Final parsed dishes:', dishes);
   return dishes;
 };

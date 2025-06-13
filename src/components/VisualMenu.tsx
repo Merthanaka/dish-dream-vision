@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Search, Filter, Heart, Share, Save, RefreshCw } from 'lucide-react';
-import { generateImagePrompt, detectCuisineType } from '../utils/menuProcessing';
+import { generateImagePrompt, detectCuisineType, generateImageUrl } from '../utils/menuProcessing';
 
 interface Dish {
   id: string;
@@ -24,6 +24,7 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [regeneratingImages, setRegeneratingImages] = useState<Set<string>>(new Set());
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   const categories = ['All', ...new Set(dishes.map(dish => dish.category))];
   
@@ -45,7 +46,13 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
   };
 
   const regenerateImage = async (dish: Dish) => {
+    console.log('Regenerating image for:', dish.name);
     setRegeneratingImages(prev => new Set([...prev, dish.id]));
+    setImageErrors(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(dish.id);
+      return newSet;
+    });
     
     // Simulate API call delay
     setTimeout(() => {
@@ -58,8 +65,13 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
         dish.ingredients
       );
       
-      // Update the dish image with a new timestamp to force refresh
-      dish.image = `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center&q=80&t=${Date.now()}&prompt=${encodeURIComponent(enhancedPrompt)}`;
+      console.log('New prompt for', dish.name, ':', enhancedPrompt);
+      
+      // Update the dish image with a new URL
+      const newImageUrl = generateImageUrl(enhancedPrompt);
+      dish.image = newImageUrl;
+      
+      console.log('New image URL:', newImageUrl);
       
       setRegeneratingImages(prev => {
         const newSet = new Set(prev);
@@ -67,6 +79,20 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
         return newSet;
       });
     }, 2000);
+  };
+
+  const handleImageError = (dishId: string) => {
+    console.log('Image failed to load for dish:', dishId);
+    setImageErrors(prev => new Set([...prev, dishId]));
+  };
+
+  const handleImageLoad = (dishId: string) => {
+    console.log('Image loaded successfully for dish:', dishId);
+    setImageErrors(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(dishId);
+      return newSet;
+    });
   };
 
   const groupedDishes = categories.reduce((acc, category) => {
@@ -144,9 +170,12 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
                     dish={dish}
                     isFavorite={favorites.has(dish.id)}
                     isRegenerating={regeneratingImages.has(dish.id)}
+                    hasImageError={imageErrors.has(dish.id)}
                     onSelect={() => onDishSelect(dish)}
                     onToggleFavorite={() => toggleFavorite(dish.id)}
                     onRegenerateImage={() => regenerateImage(dish)}
+                    onImageError={() => handleImageError(dish.id)}
+                    onImageLoad={() => handleImageLoad(dish.id)}
                   />
                 ))}
               </div>
@@ -161,9 +190,12 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
                 dish={dish}
                 isFavorite={favorites.has(dish.id)}
                 isRegenerating={regeneratingImages.has(dish.id)}
+                hasImageError={imageErrors.has(dish.id)}
                 onSelect={() => onDishSelect(dish)}
                 onToggleFavorite={() => toggleFavorite(dish.id)}
                 onRegenerateImage={() => regenerateImage(dish)}
+                onImageError={() => handleImageError(dish.id)}
+                onImageLoad={() => handleImageLoad(dish.id)}
               />
             ))}
           </div>
@@ -183,6 +215,16 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
           </div>
         )}
       </div>
+
+      {/* Clear & Start Over Button */}
+      <div className="fixed bottom-6 right-6">
+        <button
+          onClick={onNewScan}
+          className="bg-red-500 text-white px-4 py-2 rounded-full shadow-lg hover:bg-red-600 transition-colors text-sm font-medium"
+        >
+          Clear & Start Over
+        </button>
+      </div>
     </div>
   );
 };
@@ -191,21 +233,57 @@ interface DishCardProps {
   dish: Dish;
   isFavorite: boolean;
   isRegenerating: boolean;
+  hasImageError: boolean;
   onSelect: () => void;
   onToggleFavorite: () => void;
   onRegenerateImage: () => void;
+  onImageError: () => void;
+  onImageLoad: () => void;
 }
 
-const DishCard = ({ dish, isFavorite, isRegenerating, onSelect, onToggleFavorite, onRegenerateImage }: DishCardProps) => {
+const DishCard = ({ 
+  dish, 
+  isFavorite, 
+  isRegenerating, 
+  hasImageError,
+  onSelect, 
+  onToggleFavorite, 
+  onRegenerateImage,
+  onImageError,
+  onImageLoad
+}: DishCardProps) => {
   return (
     <div className="dish-card animate-fade-in">
       <div className="relative">
-        <img
-          src={dish.image}
-          alt={dish.name}
-          className={`w-full h-48 object-cover transition-all ${isRegenerating ? 'opacity-50' : ''}`}
-          onClick={onSelect}
-        />
+        {hasImageError ? (
+          <div className="w-full h-48 bg-gray-200 flex items-center justify-center rounded-t-2xl">
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gray-300 rounded-full flex items-center justify-center">
+                <span className="text-gray-500 text-xl">🍽️</span>
+              </div>
+              <p className="text-gray-500 text-sm">Image failed to load</p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRegenerateImage();
+                }}
+                className="mt-2 text-xs text-restaurant-gold hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        ) : (
+          <img
+            src={dish.image}
+            alt={dish.name}
+            className={`w-full h-48 object-cover transition-all rounded-t-2xl ${isRegenerating ? 'opacity-50' : ''}`}
+            onClick={onSelect}
+            onError={onImageError}
+            onLoad={onImageLoad}
+          />
+        )}
+        
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent rounded-t-2xl"></div>
         
         {isRegenerating && (
