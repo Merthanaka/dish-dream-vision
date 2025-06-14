@@ -27,71 +27,57 @@ const Index = () => {
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [sessionId, setSessionId] = useState<string>('');
-  const [isResetting, setIsResetting] = useState(false);
 
   // Generate new session ID for each scan
   const generateSessionId = () => {
     return `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   };
 
-  // Complete application reset function
-  const resetApplication = async () => {
-    console.log('COMPLETE RESET: Clearing all application state');
-    setIsResetting(true);
-    
-    // Clear all state variables immediately
+  // Clear all state when starting new scan
+  const clearAllState = () => {
+    console.log('Clearing all state for new scan');
     setCapturedMenu('');
     setExtractedText('');
     setDishes([]);
     setSelectedDish(null);
     setFavorites(new Set());
+    setSessionId(generateSessionId());
     
     // Clear any cached data
-    localStorage.clear();
+    localStorage.removeItem('menuVision_lastScan');
     sessionStorage.clear();
-    
-    // Generate new session ID
-    const newSessionId = generateSessionId();
-    setSessionId(newSessionId);
-    console.log('New session ID generated:', newSessionId);
-    
-    // Small delay to ensure state is cleared
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    setIsResetting(false);
-    console.log('Reset complete - application state cleared');
   };
 
-  const handleScanMenu = async () => {
-    await resetApplication();
+  const handleScanMenu = () => {
+    clearAllState();
     setAppState('camera');
   };
 
-  const handleUploadMenu = async () => {
-    await resetApplication();
+  const handleUploadMenu = () => {
+    clearAllState();
     setAppState('camera');
   };
 
   const handleCaptureComplete = (imageData: string) => {
-    console.log('Capture complete for session:', sessionId);
+    console.log('Capture complete, setting menu image');
     setCapturedMenu(imageData);
     setAppState('processing');
   };
 
   const handleTextExtracted = (text: string) => {
-    console.log('Text extracted for session:', sessionId);
+    console.log('Text extracted:', text);
     setExtractedText(text);
     setAppState('verification');
   };
 
   const handleTextConfirmed = (confirmedText: string) => {
-    console.log('Text confirmed for session:', sessionId);
+    console.log('Text confirmed, processing dishes...');
     setExtractedText(confirmedText);
     setAppState('processing');
   };
 
   const handleProcessingComplete = (processedDishes: Dish[]) => {
-    console.log('Processing complete for session:', sessionId, 'with dishes:', processedDishes);
+    console.log('Processing complete with dishes:', processedDishes);
     setDishes(processedDishes);
     setAppState('menu');
   };
@@ -100,14 +86,13 @@ const Index = () => {
     setSelectedDish(dish);
   };
 
-  const handleNewScan = async () => {
-    console.log('Starting new scan - complete reset');
-    await resetApplication();
+  const handleNewScan = () => {
+    console.log('Starting new scan - clearing all data');
+    clearAllState();
     setAppState('welcome');
   };
 
-  const handleBackToCamera = async () => {
-    await resetApplication();
+  const handleBackToCamera = () => {
     setAppState('welcome');
   };
 
@@ -128,68 +113,12 @@ const Index = () => {
   // Initialize session ID on mount
   useEffect(() => {
     if (!sessionId) {
-      const newSessionId = generateSessionId();
-      setSessionId(newSessionId);
-      console.log('Initial session ID:', newSessionId);
+      setSessionId(generateSessionId());
     }
   }, [sessionId]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log('Component unmounting - cleaning up');
-      setCapturedMenu('');
-      setExtractedText('');
-      setDishes([]);
-      setSelectedDish(null);
-      setFavorites(new Set());
-    };
-  }, []);
-
-  // Show loading state during reset
-  if (isResetting) {
-    return (
-      <div className="min-h-screen bg-gradient-warm flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-restaurant-gold rounded-full flex items-center justify-center animate-spin">
-            <div className="w-8 h-8 bg-white rounded-full"></div>
-          </div>
-          <p className="text-restaurant-dark-brown font-medium">Resetting application...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Debug Panel - Remove in production */}
-      <div className="fixed bottom-4 right-4 z-50 bg-white p-2 rounded-lg shadow-lg border text-xs">
-        <div className="mb-2">Session: {sessionId?.slice(-8)}</div>
-        <div className="mb-2">State: {appState}</div>
-        <div className="mb-2">Dishes: {dishes.length}</div>
-        <button
-          onClick={() => {
-            console.log('DEBUG STATE:', {
-              appState,
-              sessionId,
-              capturedMenu: !!capturedMenu,
-              extractedText: !!extractedText,
-              dishes: dishes.length,
-              selectedDish: !!selectedDish
-            });
-          }}
-          className="bg-blue-500 text-white px-2 py-1 rounded text-xs mr-2"
-        >
-          Log State
-        </button>
-        <button
-          onClick={handleNewScan}
-          className="bg-red-500 text-white px-2 py-1 rounded text-xs"
-        >
-          Force Reset
-        </button>
-      </div>
-
       {appState === 'welcome' && (
         <WelcomeScreen
           onScanMenu={handleScanMenu}
