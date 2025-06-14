@@ -67,8 +67,9 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
       
       console.log('New prompt for', dish.name, ':', enhancedPrompt);
       
-      // Update the dish image with a new URL
-      const newImageUrl = generateImageUrl(enhancedPrompt);
+      // Update the dish image with a new URL including timestamp
+      const sessionId = dish.id.split('-')[0];
+      const newImageUrl = generateImageUrl(enhancedPrompt, `${sessionId}-retry-${Date.now()}`);
       dish.image = newImageUrl;
       
       console.log('New image URL:', newImageUrl);
@@ -115,12 +116,20 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
                 {dishes.length} dishes with contextual AI images
               </p>
             </div>
-            <button
-              onClick={onNewScan}
-              className="btn-secondary text-sm px-4 py-2"
-            >
-              New Scan
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onNewScan}
+                className="btn-secondary text-sm px-4 py-2"
+              >
+                New Scan
+              </button>
+              <button
+                onClick={onNewScan}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                Clear & Reset
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -215,16 +224,6 @@ const VisualMenu = ({ dishes, onDishSelect, onNewScan }: VisualMenuProps) => {
           </div>
         )}
       </div>
-
-      {/* Clear & Start Over Button */}
-      <div className="fixed bottom-6 right-6">
-        <button
-          onClick={onNewScan}
-          className="bg-red-500 text-white px-4 py-2 rounded-full shadow-lg hover:bg-red-600 transition-colors text-sm font-medium"
-        >
-          Clear & Start Over
-        </button>
-      </div>
     </div>
   );
 };
@@ -252,6 +251,8 @@ const DishCard = ({
   onImageError,
   onImageLoad
 }: DishCardProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  
   return (
     <div className="dish-card animate-fade-in">
       <div className="relative">
@@ -261,33 +262,53 @@ const DishCard = ({
               <div className="w-12 h-12 mx-auto mb-2 bg-gray-300 rounded-full flex items-center justify-center">
                 <span className="text-gray-500 text-xl">🍽️</span>
               </div>
-              <p className="text-gray-500 text-sm">Image failed to load</p>
+              <p className="text-gray-500 text-sm mb-2">Image failed to load</p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onRegenerateImage();
                 }}
-                className="mt-2 text-xs text-restaurant-gold hover:underline"
+                className="text-xs text-restaurant-gold hover:underline bg-white px-2 py-1 rounded"
               >
                 Try again
               </button>
             </div>
           </div>
         ) : (
-          <img
-            src={dish.image}
-            alt={dish.name}
-            className={`w-full h-48 object-cover transition-all rounded-t-2xl ${isRegenerating ? 'opacity-50' : ''}`}
-            onClick={onSelect}
-            onError={onImageError}
-            onLoad={onImageLoad}
-          />
+          <>
+            {!imageLoaded && (
+              <div className="w-full h-48 bg-gray-200 flex items-center justify-center rounded-t-2xl absolute inset-0 z-10">
+                <div className="text-center">
+                  <div className="w-8 h-8 mx-auto mb-2 border-2 border-restaurant-gold border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-500 text-sm">Loading image...</p>
+                </div>
+              </div>
+            )}
+            <img
+              src={dish.image}
+              alt={dish.name}
+              className={`w-full h-48 object-cover transition-all rounded-t-2xl ${
+                isRegenerating ? 'opacity-50' : ''
+              } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              onClick={onSelect}
+              onError={() => {
+                console.log('Image error for:', dish.name, dish.image);
+                setImageLoaded(true);
+                onImageError();
+              }}
+              onLoad={() => {
+                console.log('Image loaded for:', dish.name);
+                setImageLoaded(true);
+                onImageLoad();
+              }}
+            />
+          </>
         )}
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent rounded-t-2xl"></div>
         
         {isRegenerating && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-t-2xl">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-t-2xl z-20">
             <div className="bg-white/90 backdrop-blur-sm rounded-full p-3">
               <RefreshCw className="w-6 h-6 text-restaurant-gold animate-spin" />
             </div>
@@ -295,7 +316,7 @@ const DishCard = ({
         )}
         
         {/* Action Buttons */}
-        <div className="absolute top-3 right-3 flex gap-2">
+        <div className="absolute top-3 right-3 flex gap-2 z-30">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -324,7 +345,7 @@ const DishCard = ({
         </div>
 
         {/* Price Badge */}
-        <div className="absolute bottom-3 left-3 bg-restaurant-gold text-white px-3 py-1 rounded-full text-sm font-bold">
+        <div className="absolute bottom-3 left-3 bg-restaurant-gold text-white px-3 py-1 rounded-full text-sm font-bold z-30">
           {dish.price}
         </div>
       </div>
